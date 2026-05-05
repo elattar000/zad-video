@@ -27,6 +27,7 @@ jobs:
 
       - name: Extract project
         run: |
+          rm -rf extracted
           mkdir extracted
           unzip -q "${{ steps.findzip.outputs.zip }}" -d extracted
 
@@ -52,6 +53,12 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+
+      - name: Create Android files
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: |
+          flutter --version
+          flutter create --platforms=android --org com.zadvideo .
 
       - name: Get packages
         working-directory: ${{ steps.locate.outputs.dir }}
