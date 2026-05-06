@@ -1,4 +1,4 @@
-name: Build APK from uploaded ZIP
+name: Build Minshawi Audio APK
 
 on:
   workflow_dispatch:
@@ -24,24 +24,25 @@ jobs:
             exit 1
           fi
           echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
+          echo "Found ZIP: $ZIP_FILE"
 
-      - name: Extract project
+      - name: Extract Flutter project
         run: |
           rm -rf extracted
           mkdir extracted
           unzip -q "${{ steps.findzip.outputs.zip }}" -d extracted
 
-      - name: Locate Flutter project
+      - name: Locate pubspec.yaml
         id: locate
         run: |
           PUBSPEC="$(find extracted -name pubspec.yaml | head -n 1)"
           if [ -z "$PUBSPEC" ]; then
-            echo "No pubspec.yaml found"
+            echo "No pubspec.yaml found inside ZIP"
             exit 1
           fi
-          DIR="$(dirname "$PUBSPEC")"
-          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
-          echo "Flutter project found at: $DIR"
+          PROJECT_DIR="$(dirname "$PUBSPEC")"
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Flutter project found at: $PROJECT_DIR"
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -54,22 +55,34 @@ jobs:
         with:
           channel: stable
 
-      - name: Create Android files
+      - name: Flutter doctor
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: flutter doctor -v
+
+      - name: Create Android platform files
         working-directory: ${{ steps.locate.outputs.dir }}
         run: |
-          flutter --version
-          flutter create --platforms=android --org com.zadvideo .
+          flutter create --platforms=android --org com.minshawi.audio .
 
       - name: Get packages
         working-directory: ${{ steps.locate.outputs.dir }}
         run: flutter pub get
 
-      - name: Build debug APK
+      - name: Build split APKs
         working-directory: ${{ steps.locate.outputs.dir }}
-        run: flutter build apk --debug
+        run: flutter build apk --release --split-per-abi
 
-      - name: Upload APK
+      - name: Rename APKs
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: |
+          cd build/app/outputs/flutter-apk
+          ls -la
+          if [ -f app-armeabi-v7a-release.apk ]; then mv app-armeabi-v7a-release.apk minshawi-armeabi-v7a.apk; fi
+          if [ -f app-arm64-v8a-release.apk ]; then mv app-arm64-v8a-release.apk minshawi-arm64-v8a.apk; fi
+          if [ -f app-x86_64-release.apk ]; then mv app-x86_64-release.apk minshawi-x86_64.apk; fi
+
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zad-video-apk
+          name: minshawi-audio-split-apks
           path: ${{ steps.locate.outputs.dir }}/build/app/outputs/flutter-apk/*.apk
